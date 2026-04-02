@@ -1,28 +1,41 @@
-# X/Twitter Plugin for Claude Code
+# x-twitter MCP Server
 
-**Post, read, search, and manage your X account and community — entirely from conversation.**
+[![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0tMSAxNXYtNEg3bDUtOXY0aDRsLTUgOXoiLz48L3N2Zz4=&logoColor=white)](https://modelcontextprotocol.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Powered by xurl](https://img.shields.io/badge/Powered%20by-xurl-1d9bf0?logo=x&logoColor=white)](https://github.com/xdevplatform/xurl)
+[![X API v2](https://img.shields.io/badge/X%20API-v2-black?logo=x&logoColor=white)](https://developer.x.com)
+[![Tools](https://img.shields.io/badge/MCP%20Tools-49-purple)](https://github.com/mrdulasolutions/x-tweet--claude-plugin)
+[![GitHub Stars](https://img.shields.io/github/stars/mrdulasolutions/x-tweet--claude-plugin?style=social)](https://github.com/mrdulasolutions/x-tweet--claude-plugin)
 
-Built on top of [xurl](https://github.com/xdevplatform/xurl), the official X CLI by the X Developer Platform. This plugin wraps xurl as a full MCP server, giving Claude Code access to 49 tools that cover the complete X API v2 surface — from community posts to DMs, trending topics, spaces, lists, media uploads, and a raw API passthrough for anything else.
+**Post, read, search, and manage your X account and community from any MCP-compatible AI agent — no browser required.**
+
+A zero-dependency MCP server wrapping [xurl](https://github.com/xdevplatform/xurl), the official X CLI by the X Developer Platform. Exposes 49 tools across the full X API v2 surface: community posts, timeline, search, engagement, DMs, lists, spaces, trends, media upload, and a raw API passthrough for anything else.
+
+Works with **Claude Code**, **Cursor**, **Windsurf**, **Cline**, **Continue**, **Goose**, **OpenAI Agents**, or any host that speaks the [Model Context Protocol](https://modelcontextprotocol.io).
 
 ---
 
-## What This Plugin Does
+## What This Does
 
-You talk to Claude. Claude talks to X. No browser required.
-
-```
-You: "Post to my X community: Excited to share our new plugin launch!"
-Claude: [calls x_community_post] → Posted. Tweet ID: 1234567890
-```
+Your agent talks to X. You don't have to open the app.
 
 ```
-You: "Search X for 'export compliance AI' and summarize the top 5 results"
-Claude: [calls x_search] → Here's what's trending in that space...
+Agent prompt:  "Post to my X community: Excited to share our new plugin launch!"
+Tool call:     x_community_post({ text: "Excited to share our new plugin launch!" })
+Result:        Posted. Tweet ID: 1907654321098765432
 ```
 
 ```
-You: "Upload this screenshot and post it to my community with a caption"
-Claude: [calls x_upload_media, then x_community_post_with_media] → Done.
+Agent prompt:  "Search X for 'export compliance AI' and summarize the top 5"
+Tool call:     x_search({ query: "export compliance AI", count: 5 })
+Result:        Here's what's trending in that space...
+```
+
+```
+Agent prompt:  "Upload this screenshot and post it to my community with a caption"
+Tool calls:    x_upload_media({ file_path: "..." }) → x_community_post_with_media({ ... })
+Result:        Done. Media ID attached.
 ```
 
 ---
@@ -30,26 +43,80 @@ Claude: [calls x_upload_media, then x_community_post_with_media] → Done.
 ## Architecture
 
 ```
-Claude Code (conversation)
-       │
-       ▼
-  Skill (SKILL.md)           ← triggers Claude to use this plugin
+AI Agent (any MCP host)
        │
        ▼
   MCP Server (x-mcp-server.mjs)   ← 49 tools, stdio JSON-RPC transport
+       │                              zero npm dependencies, single file
+       ▼
+  xurl binary                     ← official X CLI, handles OAuth + API calls
        │
        ▼
-  xurl binary                ← official X CLI, handles OAuth + API calls
-       │
-       ▼
-  X API v2 (+ v1.1 for trends)
+  X API v2  (+v1.1 for trends)
 ```
 
-The MCP server is a single Node.js file with no npm dependencies. It communicates with Claude Code over stdin/stdout using the MCP JSON-RPC protocol. All authentication and API signing is handled by xurl — the server just shells out to it.
+The server communicates over stdin/stdout using the MCP JSON-RPC protocol (`2024-11-05`). All OAuth signing and token management is handled by xurl — this server just shells out to it.
 
 ---
 
-## Setup
+## MCP Host Setup
+
+### Claude Code
+
+```bash
+claude plugin install .
+```
+
+Or add to your `claude_desktop_config.json` / `.mcp.json` manually (see Configuration below).
+
+### Cursor / Windsurf / Cline / Continue
+
+Add to your MCP settings file (location varies by host):
+
+```json
+{
+  "mcpServers": {
+    "x-twitter": {
+      "command": "node",
+      "args": ["/absolute/path/to/x-twitter/servers/x-mcp-server.mjs"],
+      "env": {
+        "XURL_PATH": "/opt/homebrew/bin/xurl",
+        "X_COMMUNITY_ID": "your_community_id_here"
+      }
+    }
+  }
+}
+```
+
+### OpenAI Agents SDK / Other MCP clients
+
+Point the server at the `.mjs` file via `node`. The server speaks standard MCP over stdio — no custom transport or SDK needed.
+
+```python
+# Example: OpenAI Agents SDK
+from agents.mcp import MCPServerStdio
+
+server = MCPServerStdio(
+    command="node",
+    args=["/path/to/x-twitter/servers/x-mcp-server.mjs"],
+    env={"XURL_PATH": "/opt/homebrew/bin/xurl", "X_COMMUNITY_ID": "..."}
+)
+```
+
+### Verify the server starts
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' \
+  | node /path/to/x-twitter/servers/x-mcp-server.mjs
+```
+
+Should return a JSON response with `serverInfo: { name: "x-twitter", version: "0.2.0" }`.
+
+---
+
+## xurl Setup
+
+xurl handles all X authentication. This only needs to be done once.
 
 ### 1. Install xurl
 
@@ -63,18 +130,19 @@ Or via npm:
 npm install -g @xdevplatform/xurl
 ```
 
-Verify:
-
 ```bash
-xurl version
+xurl version   # verify
 ```
 
 ### 2. Create an X Developer App
 
 1. Go to [developer.x.com](https://developer.x.com) and create a project + app
-2. Enable OAuth 2.0 with User Authentication
-3. Set callback URL to `http://localhost:3000/callback` (or any localhost URL)
-4. Copy your **Client ID** and **Client Secret**
+2. Under **User authentication settings**, enable **OAuth 2.0**
+3. Set **Type of App** to **Web App**
+4. Add callback URI: `http://localhost:8080/callback`
+5. Set **App permissions** to **Read and Write**
+6. Enable scopes: `tweet.read`, `tweet.write`, `users.read`, `offline.access`
+7. Copy your **Client ID** and **Client Secret**
 
 ### 3. Register your app with xurl
 
@@ -87,22 +155,24 @@ xurl auth apps add myapp \
 ### 4. Authenticate (OAuth 2.0)
 
 ```bash
-xurl auth login
+xurl auth oauth2
 ```
 
-This opens your browser. Approve access and xurl stores the token locally.
+Opens your browser for authorization. Approve, and xurl stores the token locally.
 
 ### 5. (Optional) OAuth 1.0a for trends
 
-The `x_trends` and `x_trend_locations` tools use the v1.1 API, which requires OAuth 1.0a credentials:
+`x_trends` and `x_trend_locations` use the v1.1 API and require OAuth 1.0a:
 
 ```bash
 xurl auth oauth1 \
   --consumer-key YOUR_API_KEY \
   --consumer-secret YOUR_API_SECRET \
   --access-token YOUR_ACCESS_TOKEN \
-  --token-secret YOUR_ACCESS_TOKEN_SECRET
+  --access-token-secret YOUR_ACCESS_TOKEN_SECRET
 ```
+
+All four values are in Developer Portal → your app → **Keys and Tokens**.
 
 ### 6. Set your default app
 
@@ -110,37 +180,24 @@ xurl auth oauth1 \
 xurl auth default "myapp"
 ```
 
-### 7. Verify everything works
+### 7. Verify
 
 ```bash
-xurl whoami        # Should return your profile
-xurl post "test"   # Delete this after — it will actually post
+xurl whoami   # returns your profile JSON
 ```
-
-### 8. Install the plugin in Claude Code
-
-From the `x-twitter/` directory (or after cloning this repo):
-
-```bash
-claude plugin install .
-```
-
-Or point Claude Code at this directory as a local plugin in your settings.
 
 ---
 
 ## Configuration
 
-The plugin is configured via `.mcp.json` environment variables:
+Configured via environment variables passed by your MCP host:
 
-| Variable         | Required | Default                      | Description                          |
-|------------------|----------|------------------------------|--------------------------------------|
-| `XURL_PATH`      | No       | `/opt/homebrew/bin/xurl`     | Full path to your xurl binary        |
-| `X_COMMUNITY_ID` | No       | *(empty)*                    | Default community ID for all posts   |
+| Variable         | Required | Default                      | Description                         |
+|------------------|----------|------------------------------|-------------------------------------|
+| `XURL_PATH`      | No       | `/opt/homebrew/bin/xurl`     | Full path to your xurl binary       |
+| `X_COMMUNITY_ID` | No       | *(empty)*                    | Default community ID for all posts  |
 
 ### Finding your Community ID
-
-Your community ID is in the URL when you visit your community page:
 
 ```
 https://x.com/i/communities/2039109548405907598
@@ -148,24 +205,24 @@ https://x.com/i/communities/2039109548405907598
                               This is your community ID
 ```
 
-### Overriding per-call
+### Per-call override
 
-Every community tool accepts an optional `community_id` parameter that overrides the env var for that specific call.
+Every community tool accepts an optional `community_id` argument that overrides the env var for that specific call.
 
 ---
 
-## Tools Reference
+## Tools Reference (49 total)
 
-### Community (4 tools)
+### Community (4)
 
 | Tool | Description |
 |------|-------------|
 | `x_community_post` | Post text to your community. Supports `share_with_followers` and `reply_settings`. |
 | `x_community_post_with_media` | Post text + uploaded media to your community. |
-| `x_community_lookup` | Look up a community by ID — returns name, description, member count. |
+| `x_community_lookup` | Look up a community by ID — name, description, member count. |
 | `x_community_search` | Search for X Communities by keyword. |
 
-### Posting & Replies (6 tools)
+### Posting & Replies (6)
 
 | Tool | Description |
 |------|-------------|
@@ -176,16 +233,16 @@ Every community tool accepts an optional `community_id` parameter that overrides
 | `x_edit_post` | Edit an existing post (within X's edit window). |
 | `x_delete_tweet` | Delete a tweet by ID. |
 
-### Reading (4 tools)
+### Reading (4)
 
 | Tool | Description |
 |------|-------------|
 | `x_read` | Read a specific tweet by ID. |
 | `x_timeline` | Your home timeline. |
 | `x_mentions` | Your recent @mentions. |
-| `x_search` | Search recent tweets (7-day window). Supports X operators: `from:`, `to:`, `has:media`, `-is:retweet`, etc. |
+| `x_search` | Search recent tweets (7-day window). Supports operators: `from:`, `to:`, `has:media`, `-is:retweet`, etc. |
 
-### Engagement (8 tools)
+### Engagement (8)
 
 | Tool | Description |
 |------|-------------|
@@ -198,7 +255,7 @@ Every community tool accepts an optional `community_id` parameter that overrides
 | `x_bookmarks` | List all your bookmarked tweets. |
 | `x_likes` | List all your liked tweets. |
 
-### Users & Social Graph (10 tools)
+### Users & Social Graph (10)
 
 | Tool | Description |
 |------|-------------|
@@ -213,14 +270,14 @@ Every community tool accepts an optional `community_id` parameter that overrides
 | `x_followers` | List your followers. |
 | `x_following` | List who you follow. |
 
-### Direct Messages (2 tools)
+### Direct Messages (2)
 
 | Tool | Description |
 |------|-------------|
 | `x_dm` | Send a Direct Message to a user. |
 | `x_dms` | List your recent Direct Messages. |
 
-### Lists (6 tools)
+### Lists (6)
 
 | Tool | Description |
 |------|-------------|
@@ -231,37 +288,37 @@ Every community tool accepts an optional `community_id` parameter that overrides
 | `x_list_tweets` | Get recent tweets from a list's timeline. |
 | `x_my_lists` | Get all lists you own. |
 
-### Spaces (2 tools)
+### Spaces (2)
 
 | Tool | Description |
 |------|-------------|
 | `x_spaces_search` | Search for live or scheduled X Spaces. Filter by state: `live`, `scheduled`, or `all`. |
-| `x_space_lookup` | Look up a Space by ID — returns title, host, participant count, state. |
+| `x_space_lookup` | Look up a Space by ID — title, host, participant count, state. |
 
-### Trends (2 tools)
+### Trends (2)
 
 | Tool | Description |
 |------|-------------|
 | `x_trends` | Get trending topics. Accepts WOEID (`1` = worldwide, `23424977` = US). Requires OAuth 1.0a. |
 | `x_trend_locations` | List all locations X has trend data for. |
 
-### Media (1 tool)
+### Media (1)
 
 | Tool | Description |
 |------|-------------|
 | `x_upload_media` | Upload an image or video from a local file path. Returns a `media_id` to use in posts. |
 
-### Webhook (1 tool)
+### Webhook (1)
 
 | Tool | Description |
 |------|-------------|
 | `x_webhook_start` | Start a local webhook listener for X API events. Uses ngrok for a public URL. Requires ngrok installed. |
 
-### Utility (3 tools)
+### Utility (3)
 
 | Tool | Description |
 |------|-------------|
-| `x_raw_api` | Hit any X API endpoint directly. Full GET/POST/PUT/DELETE support. Escape hatch for anything not covered above. |
+| `x_raw_api` | Hit any X API endpoint directly. Full GET/POST/PUT/DELETE. Escape hatch for anything not covered above. |
 | `x_version` | Show xurl version and build info. |
 | `x_auth_status` | Check your current xurl authentication status. |
 
@@ -269,7 +326,7 @@ Every community tool accepts an optional `community_id` parameter that overrides
 
 ## Rate Limits
 
-X API v2 rate limits apply. The MCP server does not throttle or queue — if you hit a limit, xurl returns a 429 and Claude will surface the error.
+The MCP server does not throttle or queue. If you hit a limit, xurl returns a 429 and your agent surfaces it.
 
 | Tier | POST /2/tweets | GET endpoints | Search |
 |------|---------------|---------------|--------|
@@ -277,23 +334,23 @@ X API v2 rate limits apply. The MCP server does not throttle or queue — if you
 | Basic ($100/mo) | 100/day | Higher | Higher |
 | Pro ($5k/mo) | 10,000/day | Much higher | Much higher |
 
-Key things that burn your POST quota fast: polls, quote tweets, replies. Community posts use the same `/2/tweets` endpoint and count against your limit.
+Polls, quote tweets, and replies all consume your POST quota. Community posts use the same `/2/tweets` endpoint and count against the same limit.
 
 ---
 
 ## Known Limitations
 
-- **Replies and cold quote tweets may 403** on free/basic tiers due to X's anti-bot enforcement ("Operation Kill the Bots", Feb 2026). Direct posts and community posts still work reliably.
-- **Trends require OAuth 1.0a**. If you only set up OAuth 2.0, `x_trends` will fail. Run `xurl auth oauth1 ...` to add those credentials.
-- **DMs require elevated access**. The `x_dm` and `x_dms` tools need your app to have DM permissions enabled in the developer portal.
-- **Media upload supports** images (JPEG, PNG, GIF, WEBP) and video (MP4). File size limits: 5MB for images, 512MB for video.
+- **Replies and cold quote tweets may 403** on free/basic tiers due to X's anti-bot enforcement ("Operation Kill the Bots", Feb 2026). Direct posts and community posts are unaffected.
+- **Trends require OAuth 1.0a**. The v1.1 trends API doesn't accept OAuth 2.0 tokens. Run `xurl auth oauth1 ...` separately.
+- **DMs require elevated access**. Enable "Read, Write, and Direct Messages" in Developer Portal and re-authenticate.
+- **Media upload** supports JPEG, PNG, GIF, WEBP (≤5MB) and MP4 (≤512MB).
 - **Webhook tool requires ngrok** installed and authenticated separately.
 
 ---
 
 ## Troubleshooting
 
-This section is built from real setup failures. Work through them in order — most issues are Developer Portal configuration, not code.
+Built from real setup failures. Work through these in order — most issues are Developer Portal configuration, not code.
 
 ---
 
@@ -303,7 +360,7 @@ This section is built from real setup failures. Work through them in order — m
 
 **`client-not-enrolled` or all v2 endpoints fail immediately**
 
-Your app exists but isn't inside a Project. X requires all apps to be attached to a Developer Project to access v2 endpoints.
+Your app exists but isn't inside a Project. X requires all apps to be attached to a Developer Project to access v2 endpoints. The error message does not mention Projects at all.
 
 **Option A — Create a Project and attach your app:**
 1. Go to [developer.x.com](https://developer.x.com) → left sidebar → **Projects & Apps**
@@ -319,35 +376,31 @@ Your app exists but isn't inside a Project. X requires all apps to be attached t
 4. Select **Paid** and **Development**
 5. Save — then re-run `xurl whoami`
 
-This is the most common first-time blocker. The error message does not mention Projects at all, which makes it hard to diagnose.
-
 ---
 
 **`OAuth2 authentication failed: Auth Error: UsernameNotFound`**
 
-The browser says "Authentication successful! You can close this window." but the terminal prints this error.
+Browser says "Authentication successful!" but the terminal fails. The OAuth2 token was issued but lacks the `users.read` scope, so xurl can't fetch your username after login.
 
-Cause: the OAuth2 token was issued but lacks the `users.read` scope, so xurl can't fetch your username after login.
+Fix — Developer Portal → your app → **User authentication settings → Edit**:
 
-Fix — in the Developer Portal under your app → **User authentication settings → Edit**:
-
-1. Set **App permissions** to **Read and Write** (not just Read)
-2. Under **OAuth 2.0 scopes**, enable all of:
+1. Set **App permissions** to **Read and Write**
+2. Enable all of these OAuth 2.0 scopes:
    - `tweet.read`
    - `tweet.write`
    - `users.read`
    - `offline.access`
 3. Save, then re-run `xurl auth oauth2`
 
-After changing scopes you must re-authenticate — existing tokens won't pick up the new scopes.
+Existing tokens won't pick up new scopes — you must re-authenticate after saving.
 
 ---
 
 **`Something went wrong — You weren't able to give access to the App`**
 
-Browser error during the OAuth2 login flow. Cause: the redirect URI in your Developer Portal doesn't match what xurl expects.
+Browser error during the OAuth2 login flow. The redirect URI in your Developer Portal doesn't match what xurl expects.
 
-Fix — in Developer Portal → your app → **User authentication settings → Edit**:
+Fix — Developer Portal → your app → **User authentication settings → Edit**:
 
 1. Set **Type of App** to **Web App** (not Native App)
 2. Under **Callback URI / Redirect URL**, add exactly:
@@ -357,45 +410,47 @@ Fix — in Developer Portal → your app → **User authentication settings → 
 3. Set **Website URL** to anything (e.g. `https://yoursite.com`)
 4. Save, then re-run `xurl auth oauth2`
 
-The redirect URI must match character-for-character including the trailing path. `http://localhost:8080` alone (without `/callback`) will not work.
+The redirect URI must match character-for-character including the trailing path. `http://localhost:8080` without `/callback` will not work.
 
 ---
 
-**`xurl auth oauth2` opens nothing / hangs**
+**`xurl auth oauth2` opens nothing or hangs**
 
-xurl starts a local server on port 8080 to receive the OAuth callback. If the browser doesn't open automatically, copy the URL it prints and open it manually. If port 8080 is in use, stop whatever is running on it (`lsof -i :8080`).
+xurl starts a local server on port 8080 for the OAuth callback. If the browser doesn't open automatically, copy the URL it prints and open it manually. If port 8080 is busy:
+
+```bash
+lsof -i :8080   # find what's using it
+```
 
 ---
 
 **OAuth1 and bearer are set but commands still fail**
 
-Check which app is currently the default:
+Your app might not be the default. Check:
 
 ```bash
 xurl auth status
 ```
 
-If your app shows credentials but isn't marked as default, set it:
+If credentials are present but the app isn't the default, set it:
 
 ```bash
 xurl auth default "Your App Name"
 ```
 
-Then re-test with `xurl whoami`.
-
 ---
 
 **`xurl oauth1` or `xurl oauth2` returns `{} Error: request failed`**
 
-These are not valid commands. The auth subcommands live under `xurl auth`:
+These aren't valid top-level commands. Auth management lives under `xurl auth`:
 
 ```bash
-xurl auth oauth2        # run the OAuth2 login flow
-xurl auth oauth1 ...    # configure OAuth1 credentials
-xurl auth status        # check what's stored
+xurl auth oauth2          # run the OAuth2 login flow
+xurl auth oauth1 ...      # configure OAuth1 credentials
+xurl auth status          # check what's stored
 ```
 
-Running `xurl oauth1` or `xurl oauth2` at the top level is a common typo — xurl parses it as a URL and fails.
+Running `xurl oauth1` directly causes xurl to interpret it as a URL — it fails silently.
 
 ---
 
@@ -405,23 +460,22 @@ Running `xurl oauth1` or `xurl oauth2` at the top level is a common typo — xur
 
 **`command not found: xurl`**
 
-The MCP server defaults to `/opt/homebrew/bin/xurl`. If you installed xurl elsewhere, find the actual path:
+Find the actual path and update `.mcp.json`:
 
 ```bash
 which xurl
+# e.g. /usr/local/bin/xurl
 ```
 
-Then update `.mcp.json`:
-
 ```json
-"XURL_PATH": "/your/actual/path/to/xurl"
+"XURL_PATH": "/usr/local/bin/xurl"
 ```
 
 ---
 
 **`401 Unauthorized`**
 
-Token is missing or expired. Check status and re-authenticate:
+Token missing or expired:
 
 ```bash
 xurl auth status
@@ -432,19 +486,19 @@ xurl auth oauth2
 
 **`403 Forbidden` on replies or quote tweets**
 
-Expected behavior on free and basic tiers. X's anti-bot enforcement ("Operation Kill the Bots", Feb 2026) blocks programmatic replies and cold quote tweets. Community posts (`x_community_post`) and direct timeline posts (`x_post`) are not affected.
+Expected. X's anti-bot enforcement blocks programmatic replies and cold quote tweets on free and basic tiers. `x_community_post` and `x_post` are unaffected.
 
 ---
 
 **`429 Too Many Requests`**
 
-You've hit your rate limit. GET limits reset every 15 minutes. POST limits (tweets) reset every 24 hours. Check your current usage in the X Developer Dashboard.
+Rate limit hit. GET limits reset every 15 minutes. POST (tweet) limits reset every 24 hours.
 
 ---
 
 **Trends return empty or `401`**
 
-`x_trends` and `x_trend_locations` use the v1.1 API which requires OAuth 1.0a — not OAuth 2.0. Run:
+Trends use the v1.1 API — OAuth 1.0a required, not OAuth 2.0:
 
 ```bash
 xurl auth oauth1 \
@@ -454,13 +508,11 @@ xurl auth oauth1 \
   --access-token-secret YOUR_TOKEN_SECRET
 ```
 
-You can find all four values in Developer Portal → your app → **Keys and Tokens**.
-
 ---
 
-**DM tools return `403` or `not authorized`**
+**DM tools return `403`**
 
-Direct Message access requires your app to have DM permissions explicitly enabled. In Developer Portal → your app → **User authentication settings**, set **App permissions** to **Read, Write, and Direct Messages**. You must re-authenticate after changing permissions.
+In Developer Portal → your app → **User authentication settings**, set **App permissions** to **Read, Write, and Direct Messages**. Re-authenticate after saving.
 
 ---
 
@@ -471,12 +523,14 @@ x-twitter/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin manifest (name, version, author)
 ├── servers/
-│   └── x-mcp-server.mjs    # MCP server — 49 tools, no npm dependencies
+│   └── x-mcp-server.mjs    # MCP server — 49 tools, zero npm dependencies
 ├── skills/
 │   └── x-twitter/
-│       └── SKILL.md         # Claude trigger phrases and usage guide
+│       └── SKILL.md         # Claude Code skill trigger phrases
 ├── .gitignore
-├── .mcp.json                # MCP server config (paths, env vars)
+├── .mcp.json                # MCP server config (xurl path, community ID)
+├── ETHOS.md
+├── LICENSE.md
 └── README.md
 ```
 
@@ -484,13 +538,12 @@ x-twitter/
 
 ## Contributing
 
-This plugin is intentionally dependency-free. The server is a single `.mjs` file and should stay that way.
+The server is intentionally a single dependency-free `.mjs` file. Keep it that way.
 
 When adding tools:
-1. Add the tool object to the `TOOLS` array in `x-mcp-server.mjs`
-2. Update the tool list in `skills/x-twitter/SKILL.md`
-3. Update the tool count in the SKILL.md header
-4. Add a row to the Tools Reference table in `README.md`
+1. Add the tool object to the `TOOLS` array in `servers/x-mcp-server.mjs`
+2. Update the tool list and count in `skills/x-twitter/SKILL.md`
+3. Add a row to the Tools Reference table above
 
 Issues and PRs welcome at [github.com/mrdulasolutions/x-tweet--claude-plugin](https://github.com/mrdulasolutions/x-tweet--claude-plugin).
 
@@ -502,4 +555,4 @@ MIT — see [LICENSE.md](LICENSE.md)
 
 ---
 
-*Built by [M.R. Dula](https://github.com/mrdulasolutions) · Powered by [xurl](https://github.com/xdevplatform/xurl) · Runs on [Claude Code](https://claude.ai/code)*
+*Built by [M.R. Dula](https://github.com/mrdulasolutions) · Powered by [xurl](https://github.com/xdevplatform/xurl) · [Model Context Protocol](https://modelcontextprotocol.io)*
